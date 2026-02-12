@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -23,9 +24,10 @@ type ServiceAccount struct {
 }
 
 type Config struct {
-	BigQueryProjectID      string
-	BigQueryServiceAccount ServiceAccount
-	GeminiAPIKey           string
+	BigQueryProjectID          string
+	BigQueryServiceAccount     ServiceAccount
+	BigQueryServiceAccountJSON []byte
+	GeminiAPIKey               string
 }
 
 func LoadConfig() (*Config, error) {
@@ -39,6 +41,9 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("BIGQUERY_SERVICE_ACCOUNT is not set")
 	}
 
+	// Fix potential double-escaping of newlines in the private key
+	bigqueryServiceAccount = strings.ReplaceAll(bigqueryServiceAccount, "\\\\n", "\\n")
+
 	bigqueryProjectID := os.Getenv("BIGQUERY_PROJECT_ID")
 	if bigqueryProjectID == "" {
 		return nil, fmt.Errorf("BIGQUERY_PROJECT_ID is not set")
@@ -49,15 +54,16 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
 	}
 
-	var ServiceAccount ServiceAccount
-	err = json.Unmarshal([]byte(bigqueryServiceAccount), &ServiceAccount)
+	var serviceAccount ServiceAccount
+	err = json.Unmarshal([]byte(bigqueryServiceAccount), &serviceAccount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal bigquery service account: %w", err)
 	}
 
 	return &Config{
-		BigQueryProjectID:      bigqueryProjectID,
-		BigQueryServiceAccount: ServiceAccount,
-		GeminiAPIKey:           geminiAPIKey,
+		BigQueryProjectID:          bigqueryProjectID,
+		BigQueryServiceAccount:     serviceAccount,
+		BigQueryServiceAccountJSON: []byte(bigqueryServiceAccount),
+		GeminiAPIKey:               geminiAPIKey,
 	}, nil
 }
