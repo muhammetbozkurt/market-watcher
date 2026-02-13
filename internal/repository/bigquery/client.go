@@ -13,6 +13,17 @@ type Client struct {
 	client *bigquery.Client
 }
 
+type QueryOption func(*bigquery.Query)
+
+func WithQueryParameter(name string, value interface{}) QueryOption {
+	return func(q *bigquery.Query) {
+		q.Parameters = append(q.Parameters, bigquery.QueryParameter{
+			Name:  name,
+			Value: value,
+		})
+	}
+}
+
 func NewClient(ctx context.Context, projectID string, opts ...option.ClientOption) (*Client, error) {
 	client, err := bigquery.NewClient(ctx, projectID, opts...)
 	if err != nil {
@@ -21,8 +32,15 @@ func NewClient(ctx context.Context, projectID string, opts ...option.ClientOptio
 	return &Client{client: client}, nil
 }
 
-func (c *Client) Query(ctx context.Context, query string) ([]map[string]bigquery.Value, error) {
+func String(s string) interface{} {
+	return s
+}
+
+func (c *Client) Query(ctx context.Context, query string, opts ...QueryOption) ([]map[string]bigquery.Value, error) {
 	q := c.client.Query(query)
+	for _, opt := range opts {
+		opt(q)
+	}
 	it, err := q.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)

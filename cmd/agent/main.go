@@ -4,6 +4,7 @@ import (
 	"agent/internal/config"
 	"agent/internal/repository/bigquery"
 	"context"
+	"fmt"
 	"log"
 
 	"google.golang.org/api/option"
@@ -21,11 +22,24 @@ func main() {
 	}
 	defer client.Close()
 
-	rows, err := client.Query(context.Background(), "SELECT install_date, round(AVG(trial_cr), 2) trial_cr FROM `bi-data-430410.comaichatbotassistantapp2024.trial_cr_base` WHERE install_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 week) group by 1 order by 1 desc LIMIT 2")
+	datasetRows, err := client.Query(context.Background(),
+		bigquery.DatasetIdQuery,
+	)
 	if err != nil {
 		log.Fatalf("failed to query bigquery: %v", err)
 	}
-	log.Printf("rows: %v", rows)
+	log.Printf("datasetRows: %v\n", datasetRows)
+
+	for _, datasetRow := range datasetRows {
+		datasetID := datasetRow["dataset_id"].(string)
+		rows, err := client.Query(context.Background(),
+			fmt.Sprintf(bigquery.ComparisonQuery, datasetID),
+		)
+		if err != nil {
+			log.Fatalf("failed to query bigquery: %v", err)
+		}
+		log.Printf("rows: %v\n", rows)
+	}
 
 	// if err != nil {
 	// 	log.Fatal("failed to load config: %w", err)
