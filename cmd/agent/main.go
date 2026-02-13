@@ -3,8 +3,8 @@ package main
 import (
 	"agent/internal/config"
 	"agent/internal/repository/bigquery"
+	"agent/internal/service"
 	"context"
-	"fmt"
 	"log"
 
 	"google.golang.org/api/option"
@@ -22,31 +22,8 @@ func main() {
 	}
 	defer client.Close()
 
-	datasetRows, err := client.Query(context.Background(),
-		bigquery.DatasetIdQuery,
-	)
-	if err != nil {
-		log.Fatalf("failed to query bigquery: %v", err)
-	}
-	log.Printf("datasetRows: %v\n", datasetRows)
+	bigqueryRepo := bigquery.NewMetricRepository(client)
+	worker := service.NewWatcherService(bigqueryRepo)
 
-	for _, datasetRow := range datasetRows {
-		datasetID := datasetRow["dataset_id"].(string)
-		rows, err := client.Query(context.Background(),
-			fmt.Sprintf(bigquery.ComparisonQuery, datasetID),
-		)
-		if err != nil {
-			log.Fatalf("failed to query bigquery: %v", err)
-		}
-		log.Printf("rows: %v\n", rows)
-	}
-
-	// if err != nil {
-	// 	log.Fatal("failed to load config: %w", err)
-	// }
-	// log.Println("config loaded: %v", cfg)
-
-	// log.Println("test data")
-	// Args := os.Args
-	// log.Println(strings.Join(Args[1:], "-"))
+	worker.CheckForAnomalies(context.Background())
 }

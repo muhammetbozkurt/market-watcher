@@ -12,11 +12,11 @@ type MetricRepository struct {
 	client *Client
 }
 
-func (r *MetricRepository) NewMetricRepository(client *Client) *MetricRepository {
+func NewMetricRepository(client *Client) *MetricRepository {
 	return &MetricRepository{client: client}
 }
 
-func (r *MetricRepository) GetMetricSnapshot(ctx context.Context) ([]domain.MetricSnapshot, error) {
+func (r *MetricRepository) GetMetricSnapshots(ctx context.Context) ([]domain.MetricSnapshot, error) {
 
 	var wg sync.WaitGroup
 
