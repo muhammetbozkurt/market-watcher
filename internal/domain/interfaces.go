@@ -13,3 +13,10 @@ type MetricSnapshot struct {
 type MetricRepository interface {
 	GetMetricSnapshots(ctx context.Context) ([]MetricSnapshot, error)
 }
+
+type Anomaly struct {
+	DatasetID             string // will be app_id
+	Country				string
+	CampaignID			string
+	CampaignName		string
+}

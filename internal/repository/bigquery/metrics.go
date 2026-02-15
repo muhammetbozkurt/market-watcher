@@ -17,7 +17,6 @@ func NewMetricRepository(client *Client) *MetricRepository {
 }
 
 func (r *MetricRepository) GetMetricSnapshots(ctx context.Context) ([]domain.MetricSnapshot, error) {
-
 	var wg sync.WaitGroup
 
 	datasetRows, err := r.client.Query(context.Background(),
@@ -33,6 +32,7 @@ func (r *MetricRepository) GetMetricSnapshots(ctx context.Context) ([]domain.Met
 		wg.Add(1)
 
 		go func(datasetID string) { // lambda
+			defer wg.Done()
 			rows, err := r.client.Query(ctx, fmt.Sprintf(ComparisonQuery, datasetID))
 
 			if err != nil {
@@ -51,15 +51,15 @@ func (r *MetricRepository) GetMetricSnapshots(ctx context.Context) ([]domain.Met
 			}
 		}(datasetRow["dataset_id"].(string))
 	}
-
 	wg.Wait()
+	close(results)
+
 
 	var metrics []domain.MetricSnapshot
 	for result := range results {
 		metrics = append(metrics, result)
 	}
 
-	close(results)
 
 	return metrics, nil
 }

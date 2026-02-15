@@ -25,5 +25,14 @@ func main() {
 	bigqueryRepo := bigquery.NewMetricRepository(client)
 	worker := service.NewWatcherService(bigqueryRepo)
 
-	worker.CheckForAnomalies(context.Background())
+
+	anomalies, err := worker.CheckForAnomalies(context.Background())
+	if err != nil {
+		log.Fatalf("failed to get anomalies: %v", err)
+	}
+
+	log.Printf("---------Anomalies---------")
+	for _, anomaly := range anomalies {
+		log.Printf("anomaly: %w\n", anomaly)
+	}
 }

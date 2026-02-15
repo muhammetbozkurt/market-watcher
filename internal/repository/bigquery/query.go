@@ -1,7 +1,9 @@
 package bigquery
 
 const ComparisonQuery = `
-	SELECT
+SELECT
+  -- country_code,
+  -- campaign,
   sum(
     CASE
       WHEN day >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 day) THEN installs
@@ -29,7 +31,7 @@ const ComparisonQuery = `
 FROM %s.cost_etl
 WHERE
   day >= DATE_SUB(CURRENT_DATE(), INTERVAL 10 day)
-
+-- group by 1, 2
 order by 1 desc
 `
 
