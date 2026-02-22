@@ -1,8 +1,9 @@
 package domain
 
-import "context"
-import "time"
-
+import (
+	"context"
+	"time"
+)
 
 type MetricSnapshot struct {
 	DatasetID             string // will be app_id
@@ -17,13 +18,14 @@ type MetricRepository interface {
 }
 
 type Anomaly struct {
-	DatasetID             string // will be app_id
-	Country				string
-	CampaignID			string
-	CampaignName		string
+	DatasetID    string // will be app_id
+	Country      string
+	CampaignID   string
+	CampaignName string
+	MetricName   string
+	DiffRatio    float64
+	Date         time.Time
 }
-
-
 
 type Review struct {
 	Source   string    // "AppStore" veya "GooglePlay"
