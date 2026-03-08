@@ -37,6 +37,7 @@ order by 1 desc
 
 const DatasetIdQuery = `
 select
+  app_id,
   admin.app_id_to_dataset_id(app_id) as dataset_id
 from
   ` + "`admin.apps-metadata`" + `

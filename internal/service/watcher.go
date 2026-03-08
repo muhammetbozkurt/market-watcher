@@ -13,7 +13,7 @@ type WatcherService struct {
 func calculateCostPerInstall(installCount int64, cost float64) float64 {
 
 	if cost == 0 {
-		return  0
+		return 0
 	}
 
 	return float64(installCount) / cost
@@ -42,12 +42,13 @@ func (r *WatcherService) CheckForAnomalies(ctx context.Context) ([]domain.Anomal
 		last3DaysCostPerInstall := calculateCostPerInstall(snap.Last3DaysInstalls, snap.Last3DaysCost)
 		previous3DaysCostPerInstall := calculateCostPerInstall(snap.Previous3DaysInstalls, snap.Previous3DaysCost)
 
-		if last3DaysCostPerInstall < previous3DaysCostPerInstall * 0.85 {
+		if last3DaysCostPerInstall < previous3DaysCostPerInstall*0.85 {
 			anomalies = append(anomalies, domain.Anomaly{
 				DatasetID: snap.DatasetID,
+				AppID:     snap.AppID,
 			})
 		}
-		
+
 	}
 
 	return anomalies, nil

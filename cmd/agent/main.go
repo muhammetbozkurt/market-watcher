@@ -4,18 +4,19 @@ import (
 	"agent/internal/config"
 	"agent/internal/domain"
 	"agent/internal/intelligence"
+	"agent/internal/repository/bigquery"
 	"agent/internal/scraper"
+	"agent/internal/service"
 	"context" // Added context import
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/tmc/langchaingo/embeddings"          // Changed from embeddings/googleai
 	"github.com/tmc/langchaingo/llms/googleai"       // Added for LLM
 	"github.com/tmc/langchaingo/vectorstores/chroma" // Kept for vector store
-	// "agent/internal/repository/bigquery"
-	// "agent/internal/service"
-	// "google.golang.org/api/option"
+	"google.golang.org/api/option"
 )
 
 func main() {
@@ -23,49 +24,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
-	/*
+	ctx := context.Background()
 
-		client, err := bigquery.NewClient(context.Background(), cfg.BigQueryProjectID, option.WithCredentialsJSON(cfg.BigQueryServiceAccountJSON))
-		if err != nil {
-			log.Fatalf("failed to create bigquery client: %v", err)
-		}
-		defer client.Close()
-
-		bigqueryRepo := bigquery.NewMetricRepository(client)
-		worker := service.NewWatcherService(bigqueryRepo)
-
-
-		anomalies, err := worker.CheckForAnomalies(context.Background())
-		if err != nil {
-			log.Fatalf("failed to get anomalies: %v", err)
-		}
-
-		log.Printf("---------Anomalies---------")
-		for _, anomaly := range anomalies {
-			log.Printf("anomaly: %w\n", anomaly)
-		}
-	*/
-	appScraper := scraper.NewAppStoreScraper()
-
-	fmt.Println("Fetching App Store Reviews...")
-	reviews, err := appScraper.FetchReviews("6463052823", "us", 10)
+	llm, err := googleai.New(ctx, googleai.WithAPIKey(cfg.GeminiAPIKey), googleai.WithDefaultEmbeddingModel("gemini-embedding-001"))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to create gemini llm: %v", err)
 	}
 
-	for _, r := range reviews {
-		fmt.Printf("[%d stars] %s: %s\n", r.Rating, r.Author, r.Title)
-	}
-
-	fmt.Printf("%d revies fetched succesfullly\n", len(reviews))
-
-	ctx := context.Background()                                                                                                      // Added context initialization
-	llm, err := googleai.New(ctx, googleai.WithAPIKey(cfg.GeminiAPIKey), googleai.WithDefaultEmbeddingModel("gemini-embedding-001")) // Initialized LLM
-	if err != nil {
-		log.Fatalf("failed to create gemini llm: %v", err) // Updated error message
-	}
-
-	embedder, err := embeddings.NewEmbedder(llm) // Initialized embedder using the LLM
+	embedder, err := embeddings.NewEmbedder(llm)
 	if err != nil {
 		log.Fatalf("failed to create gemini embedder: %v", err)
 	}
@@ -74,7 +40,7 @@ func main() {
 		chroma.WithChromaURL("http://localhost:8000"),
 		chroma.WithEmbedder(embedder),
 		chroma.WithDistanceFunction("cosine"),
-		chroma.WithNameSpace("app_reviews_collection"), // Vektörlerin saklanacağı tablo (collection) adı
+		chroma.WithNameSpace("app_reviews_collection"),
 	)
 	if err != nil {
 		log.Fatalf("failed to connect to ChromaDB: %v", err)
@@ -85,39 +51,63 @@ func main() {
 		log.Fatalf("failed to initialize brain: %v", err)
 	}
 
-	err = brain.IngestReviews(ctx, reviews)
+	appScraper := scraper.NewAppStoreScraper()
+	playScraper := scraper.NewPlayStoreScraper()
+
+	client, err := bigquery.NewClient(ctx, cfg.BigQueryProjectID, option.WithCredentialsJSON([]byte(cfg.BigQueryServiceAccountJSON)))
 	if err != nil {
-		log.Fatalf("failed to ingest reviews: %v", err)
+		log.Fatalf("failed to create bigquery client: %v", err)
 	}
+	defer client.Close()
 
-	anomaly := domain.Anomaly{
-		MetricName: "intro_cr_base",
-		Country:    "US",
-		DiffRatio:  -0.15, // %15'lik bir CR düşüşü senaryosu
-		Date:       time.Now(),
-	}
+	bigqueryRepo := bigquery.NewMetricRepository(client)
+	worker := service.NewWatcherService(bigqueryRepo)
 
-	analysis, err := brain.AnalyzeAnomaly(ctx, anomaly)
+	anomalies, err := worker.CheckForAnomalies(ctx)
 	if err != nil {
-		log.Fatalf("failed to analyze anomaly: %v", err)
+		log.Fatalf("failed to get anomalies: %v", err)
 	}
 
-	fmt.Println("\n================= AJAN RAPORU =================")
-	fmt.Println(analysis)
-	fmt.Println("===============================================")
+	log.Printf("---------Anomalies---------")
+	for _, anomaly := range anomalies {
+		log.Printf("Processing anomaly for dataset: %s", anomaly.DatasetID)
 
-	/*
+		var reviews []domain.Review
+		var fetchErr error
 
-		playScraper := scraper.NewPlayStoreScraper()
+		if _, errInt := strconv.Atoi(anomaly.AppID); errInt == nil {
+			fmt.Printf("Fetching App Store Reviews for %s...\n", anomaly.AppID)
+			reviews, fetchErr = appScraper.FetchReviews(anomaly.AppID, "us", 10)
+		} else {
+			fmt.Printf("Fetching Play Store Reviews for %s...\n", anomaly.AppID)
+			reviews, fetchErr = playScraper.FetchReviews(anomaly.AppID, "us", 10)
+		}
 
-		fmt.Println("Fetching Play Store Reviews...")
-		playReviews, err := playScraper.FetchReviews("com.maps.radar.navigation.android2023", "us", 10)
+		if fetchErr != nil {
+			log.Printf("failed to fetch reviews for app_id %s (dataset: %s): %v", anomaly.AppID, anomaly.DatasetID, fetchErr)
+			continue
+		}
+
+		fmt.Printf("%d reviews fetched successfully for %s\n", len(reviews), anomaly.AppID)
+
+		err = brain.IngestReviews(ctx, reviews)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("failed to ingest reviews for %s: %v", anomaly.DatasetID, err)
+			continue
 		}
 
-		for _, r := range playReviews {
-			fmt.Printf("[%d stars] %s: %s\n", r.Rating, r.Author, r.Content)
+		anomaly.MetricName = "CostPerInstall"
+		anomaly.Date = time.Now()
+
+		analysis, err := brain.AnalyzeAnomaly(ctx, anomaly)
+		if err != nil {
+			log.Printf("failed to analyze anomaly for %s: %v", anomaly.DatasetID, err)
+			continue
 		}
-	*/
+
+		fmt.Println("\n================= AGENT REPORT =================")
+		fmt.Printf("DatasetID: %s\n", anomaly.DatasetID)
+		fmt.Println(analysis)
+		fmt.Println("===============================================")
+	}
 }

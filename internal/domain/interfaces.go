@@ -6,7 +6,8 @@ import (
 )
 
 type MetricSnapshot struct {
-	DatasetID             string // will be app_id
+	DatasetID             string
+	AppID                 string
 	Last3DaysInstalls     int64
 	Last3DaysCost         float64
 	Previous3DaysInstalls int64
@@ -18,7 +19,8 @@ type MetricRepository interface {
 }
 
 type Anomaly struct {
-	DatasetID    string // will be app_id
+	DatasetID    string
+	AppID        string
 	Country      string
 	CampaignID   string
 	CampaignName string

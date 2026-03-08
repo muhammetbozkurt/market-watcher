@@ -44,6 +44,7 @@ func (r *MetricRepository) GetMetricSnapshots(ctx context.Context) ([]domain.Met
 
 			results <- domain.MetricSnapshot{
 				DatasetID:             datasetID,
+				AppID:                 datasetRow["app_id"].(string),
 				Last3DaysInstalls:     rows[0]["last_3_days_installs"].(int64),
 				Last3DaysCost:         rows[0]["last_3_days_cost"].(float64),
 				Previous3DaysInstalls: rows[0]["previous_3_days_installs"].(int64),
@@ -54,12 +55,10 @@ func (r *MetricRepository) GetMetricSnapshots(ctx context.Context) ([]domain.Met
 	wg.Wait()
 	close(results)
 
-
 	var metrics []domain.MetricSnapshot
 	for result := range results {
 		metrics = append(metrics, result)
 	}
-
 
 	return metrics, nil
 }
